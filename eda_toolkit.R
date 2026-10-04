@@ -59,15 +59,17 @@ keep_col <- function(x, min_category_size = 10) {
      }
 
 profile_groups <- function(df, min_category_size = 10 ){
-  s <- df |> group_by(family) |> summarise(n = n(), mean_speakers = mean(native_speakers))
-  kept <- s |> filter(n >= min_category_size)
-  if (nrow(kept) == 0) return(paste0("no groups with at least ", min_category_size, " rows"))
-  lines <- paste0(kept$family, " (n=", kept$n, "): mean ", format(round(kept$mean_speakers), big.mark = ",", scientific = FALSE, trim = TRUE))
-  count <- nrow(s) - nrow(kept)
-  if (count > 0) {
-    lines <- c(lines, paste0(count, " groups with fewer than ", min_category_size, " rows not shown"))
-  }
-  paste(lines, collapse = "\n")
+  num <- df[sapply(df, is.numeric)]
+  if (ncol(num) == 0) return("no numeric columns")
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  if (ncol(cat_cols) == 0) return ("no categorical columns")
+  groupable <- cat_cols[ sapply(cat_cols, keep_col, min_category_size = min_category_size) ]
+  if (ncol(groupable) == 0) return("no categorical columns with enough rows")
+  pairs <- crossing(cat_col = names(groupable), num_col = names(num))
+  blocks <- map2_chr(pairs$cat_col, pairs$num_col, function(cat_name, num_name) profile_one_group(df, cat_name, num_name, min_category_size))
+  headings <- paste0(pairs$cat_col, " x ", pairs$num_col)
+  labeled <- paste0(headings, "\n", blocks)
+  paste(labeled, collapse = "\n\n")
 }
 
 profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
