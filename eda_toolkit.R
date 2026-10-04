@@ -69,7 +69,8 @@ profile_groups <- function(df, min_category_size = 10 ){
   blocks <- map2_chr(pairs$cat_col, pairs$num_col, function(cat_name, num_name) profile_one_group(df, cat_name, num_name, min_category_size))
   headings <- paste0(pairs$cat_col, " x ", pairs$num_col)
   labeled <- paste0(headings, "\n", blocks)
-  paste(labeled, collapse = "\n\n")
+  note <- "means are taken over rows; an entity that appears in several rows counts once per row"
+  paste(c(labeled, note), collapse = "\n\n")
 }
 
 profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
