@@ -75,7 +75,7 @@ profile_groups <- function(df, min_category_size = 10 ){
 profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
   s <- df |> group_by(.data[[cat_col]]) |>
     summarise(n = n(), mean_value = mean(.data[[num_col]], na.rm = TRUE))
-  kept <- s |> filter(n >= min_category_size)
+  kept <- s |> filter(n >= min_category_size) |> arrange(desc(n))
   if (nrow(kept) == 0) return(paste0("no groups with at least ", min_category_size, " rows"))
   lines <- paste0(
     kept[[cat_col]], " (n=", kept$n, 
