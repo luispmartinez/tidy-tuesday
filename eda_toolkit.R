@@ -19,3 +19,7 @@ profile_missing <- function(df){
   missing <- sapply(df, function(x) sum(is.na(x)))
   paste(paste0(names(missing), ":", missing), collapse = "\n")
 }
+
+profile_duplicates <- function(df){
+  paste0(sum(duplicated(df)), " duplicate rows")
+}
