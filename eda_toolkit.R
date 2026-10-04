@@ -53,3 +53,13 @@ profile_categorical <- function(df){
   paste(labeled, collapse = "\n\n")
 }
 
+profile_groups <- function(df, min_category_size = 10 ){
+  s <- df |> group_by(family) |> summarise(n = n(), mean_speakers = mean(native_speakers))
+  kept <- s |> filter(n >= min_category_size)
+  lines <- paste0(kept$family, " (n=", kept$n, "): mean ", format(round(kept$mean_speakers), big.mark = ",", scientific = FALSE, trim = TRUE))
+  count <- nrow(s) - nrow(kept)
+  if (count > 0) {
+    lines <- c(lines, paste0(count, " groups with fewer than ", min_category_size, " rows not shown"))
+  }
+  paste(lines, collapse = "\n")
+}
