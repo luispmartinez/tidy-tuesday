@@ -53,6 +53,11 @@ profile_categorical <- function(df){
   paste(labeled, collapse = "\n\n")
 }
 
+keep_col <- function(x, min_category_size = 10) {
+            length(x)/ n_distinct(x) >=min_category_size
+            # return TRUE if the column should be grouped, FALSE if skipped
+     }
+
 profile_groups <- function(df, min_category_size = 10 ){
   s <- df |> group_by(family) |> summarise(n = n(), mean_speakers = mean(native_speakers))
   kept <- s |> filter(n >= min_category_size)
@@ -64,3 +69,20 @@ profile_groups <- function(df, min_category_size = 10 ){
   }
   paste(lines, collapse = "\n")
 }
+
+profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
+  s <- df |> group_by(.data[[cat_col]]) |>
+    summarise(n = n(), mean_value = mean(.data[[num_col]], na.rm = TRUE))
+  kept <- s |> filter(n >= min_category_size)
+  if (nrow(kept) == 0) return(paste0("no groups with at least ", min_category_size, " rows"))
+  lines <- paste0(
+    kept[[cat_col]], " (n=", kept$n, 
+    "): mean ", format(round(kept$mean_value), 
+                       big.mark = ",", scientific = FALSE, trim = TRUE))
+  count <- nrow(s) - nrow(kept)
+  if (count > 0) {
+    lines <- c(lines, paste0(count, " groups with fewer than ", min_category_size, " rows not shown"))
+  }
+  paste(lines, collapse = "\n")
+}
+
