@@ -45,3 +45,11 @@ profile_one_cat <- function(x, n = 5) {
   paste(lines, collapse = "\n")
 }
 
+profile_categorical <- function(df){
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  if (ncol(cat_cols) == 0) return ("no categorical columns")
+  blocks <- sapply(cat_cols, profile_one_cat)
+  labeled <- paste0(names(blocks), "\n", blocks)
+  paste(labeled, collapse = "\n\n")
+}
+
