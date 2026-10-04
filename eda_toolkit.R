@@ -26,7 +26,8 @@ profile_duplicates <- function(df){
 
 profile_numeric <- function(df) {
   fmt <- function(v) format(v, big.mark = ",", scientific = FALSE)
-  num <- df[sapply(df, is.numeric)] if (ncol(num) == 0) return("no numeric columns")
+  num <- df[sapply(df, is.numeric)] 
+  if (ncol(num) == 0) return("no numeric columns")
   lines <- sapply(num, function(x) {
     paste0("min ", fmt(min(x, na.rm = TRUE)),
            ", median ", fmt(median(x, na.rm = TRUE)),
@@ -34,5 +35,13 @@ profile_numeric <- function(df) {
            ", max ", fmt(max(x, na.rm = TRUE)))
   })
   paste(paste0(names(lines), ": ", lines), collapse = "\n")
+}
+profile_one_cat <- function(x, n = 5) {
+  t <- sort(table(x), decreasing = TRUE)
+  lines <- paste0(names(head(t, n)), ": ", head(t, n))
+  if ( length(t) > n){
+    lines <- c(lines, paste0("... and ", length(t) - n, " more values"))
+  }
+  paste(lines, collapse = "\n")
 }
 
