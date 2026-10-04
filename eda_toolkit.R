@@ -14,3 +14,8 @@ profile_types <- function(df) {
   paste(paste0(names(types), ": ", types), collapse = "\n")
   # last line: your nested paste call, without cat()
 }
+
+profile_missing <- function(df){
+  missing <- sapply(df, function(x) sum(is.na(x)))
+  paste(paste0(names(missing), ":", missing), collapse = "\n")
+}
