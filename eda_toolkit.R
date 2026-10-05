@@ -111,10 +111,8 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     p_value <- sim$p.value
     p_note <- "simulated p-value"
   }
-  strongest <- which(abs(res$stdres) > resid_cutoff, arr.ind = TRUE)
-  zero_share <- mean(tab == 0)
-  weak_share <- weak
   share <- round(mean(tab == 0) * 100)
+  zero_share <- mean(tab == 0)
   line1 <- paste0(
     nrow(tab), " x ",
     ncol(tab),
@@ -128,6 +126,16 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     round(zero_share * 100), "% of cells are zero; ",
     round(weak * 100), "% have expected count under 5"
   )
-  lines <- c(line1, line2, line3)
+  p_text <- if (p_value < 0.0005) {
+    p_text <- "< 0.0005"
+  } else {
+    p_text <- paste0("= ", round(p_value, 4))
+  }
+  strongest <- which(abs(res$stdres) > resid_cutoff, arr.ind = TRUE)
+  line4 <- paste0(
+    "chi-square = ",round(res$statistic, 1), " (df = ",
+    res$parameter, "); ", p_note, " ", p_text
+  )
+  lines <- c(line1, line2, line3, line4)
   paste(lines, collapse = "\n")
 }
