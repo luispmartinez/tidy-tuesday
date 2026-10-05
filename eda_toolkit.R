@@ -112,6 +112,9 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     p_note <- "simulated p-value"
   }
   strongest <- which(abs(res$stdres) > resid_cutoff, arr.ind = TRUE)
+  zero_share <- mean(tab == 0)
+  weak_share <- weak
+  share <- round(mean(tab == 0) * 100)
   line1 <- paste0(
     nrow(tab), " x ",
     ncol(tab),
@@ -121,6 +124,10 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     nrow(small), " of ",
     nrow(df), " rows kept"
   )
-  lines <- c(line1, line2)
+  line3 <- paste0(
+    round(zero_share * 100), "% of cells are zero; ",
+    round(weak * 100), "% have expected count under 5"
+  )
+  lines <- c(line1, line2, line3)
   paste(lines, collapse = "\n")
 }
