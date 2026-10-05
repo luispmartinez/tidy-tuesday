@@ -137,5 +137,8 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     res$parameter, "); ", p_note, " ", p_text
   )
   lines <- c(line1, line2, line3, line4)
+  line5 <- if (weak > 0.2) {
+    lines <- c(lines, "table is sparse; treat the test as a rough guide, and rows are not independent.")
+  }
   paste(lines, collapse = "\n")
 }
