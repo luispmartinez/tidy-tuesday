@@ -95,3 +95,11 @@ big_enough <- function(x, min_category_size = 10) {
   names(counts)[keep]
 }
 
+profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cutoff = 5) {
+  keep_a <- big_enough(df[[cat_a]], min_category_size)
+  keep_b <- big_enough(df[[cat_b]], min_category_size)
+  small <- df |> filter(.data[[cat_a]] %in% keep_a, .data[[cat_b]] %in% keep_b)
+  if (length(keep_a) < 2 || length(keep_b) < 2) return (paste0("fewer than two categories with at least ", min_category_size, " rows in ", cat_a, " or ", cat_b))
+  tab <- table(small[[cat_a]], small[[cat_b]])
+  dim(tab)
+}
