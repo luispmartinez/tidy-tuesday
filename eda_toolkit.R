@@ -89,3 +89,9 @@ profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
   paste(lines, collapse = "\n")
 }
 
+big_enough <- function(x, min_category_size = 10) {
+  counts <- table(x)
+  keep <-  counts >= min_category_size
+  names(counts)[keep]
+}
+
