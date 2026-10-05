@@ -171,4 +171,171 @@ profile_crosstab <- function(df, min_category_size = 10) {
   paste(labeled, collapse = "\n\n")
 }
 
+profile_one_cor <- function(df, num_a, num_b) {
+  ct <- cor.test(df[[num_a]], df[[num_b]])
+  n <- ct$parameter + 2
+  if (ct$p.value < 0.0005) {
+    p_text <- "< 0.0005"
+  } else {
+    p_text <- paste0("= ", round(ct$p.value, 4))
+  }
+  paste0(num_a, " x ", num_b, ": r = ", round(unname(ct$estimate), 2), " (n = ", unname(n), ", p ", p_text, ")" )
+}
+
+
+format_p <- function(p) {
+  if (is.na(p)) return("p = NA")
+  if (p < 0.0005) "p < 0.0005" else paste0("p = ", round(p, 4))
+}
+
+# 4 significant digits, thousands separators, explicit sign when asked
+fmt_num <- function(x, sign = FALSE) {
+  out <- formatC(x, format = "fg", digits = 4, big.mark = ",")
+  if (sign) out <- ifelse(x >= 0, paste0("+", out), out)
+  trimws(out)
+}
+
+numeric_cols <- function(df, exclude_columns = NULL) {
+  num <- df[sapply(df, is.numeric)]
+  num[!names(num) %in% exclude_columns]
+}
+
+# ---------------------------------------------------------------------------
+# Numeric bivariate: Pearson correlation for every pair of numeric columns
+# ---------------------------------------------------------------------------
+
+pair_stats <- function(df, col_a, col_b) {
+  pair <- stats::na.omit(df[, c(col_a, col_b)])
+  n <- nrow(pair)
+  out <- tibble(col_a = col_a, col_b = col_b, n = n,
+                r = NA_real_, dof = NA_real_, p = NA_real_, note = "")
+  if (n < 3) {
+    out$note <- "fewer than 3 complete rows"
+    return(out)
+  }
+  if (sd(pair[[1]]) == 0 || sd(pair[[2]]) == 0) {
+    out$note <- "one column is constant; correlation undefined"
+    return(out)
+  }
+  res <- stats::cor.test(pair[[1]], pair[[2]])
+  out$r <- unname(res$estimate)
+  out$dof <- unname(res$parameter)
+  out$p <- res$p.value
+  out
+}
+
+profile_bivariate <- function(df, exclude_columns = NULL) {
+  num <- numeric_cols(df, exclude_columns)
+  if (ncol(num) < 2) return("fewer than two numeric columns")
+  pairs <- combn(names(num), 2)
+  stats_tbl <- map_dfr(seq_len(ncol(pairs)), function(i) pair_stats(df, pairs[1, i], pairs[2, i]))
+  stats_tbl <- stats_tbl |> arrange(desc(abs(r)))   # NA pairs sort last
+  lines <- ifelse(
+    stats_tbl$note == "",
+    paste0(stats_tbl$col_a, " x ", stats_tbl$col_b, ": r = ", sprintf("%+.3f", stats_tbl$r),
+           " (df = ", stats_tbl$dof, "), ", sapply(stats_tbl$p, format_p),
+           ", n = ", stats_tbl$n),
+    paste0(stats_tbl$col_a, " x ", stats_tbl$col_b, ": ", stats_tbl$note)
+  )
+  note <- paste0(nrow(stats_tbl), " pairs tested, sorted by |r|; p-values are not adjusted for ",
+                 "multiple comparisons, and rows are treated as independent")
+  paste(c(lines, "", note), collapse = "\n")
+}
+
+# ---------------------------------------------------------------------------
+# OLS: one-way model per (categorical, numeric) pair, num ~ cat
+# ---------------------------------------------------------------------------
+
+profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_terms = 10) {
+  keep <- big_enough(df[[cat_col]], min_category_size)
+  if (length(keep) < 2) {
+    return(paste0("fewer than two categories with at least ", min_category_size, " rows"))
+  }
+  small <- df |>
+    filter(.data[[cat_col]] %in% keep) |>
+    select(all_of(c(cat_col, num_col))) |>
+    stats::na.omit()
+  small[[cat_col]] <- factor(small[[cat_col]])     # drops levels that no longer appear
+  levs <- levels(small[[cat_col]])
+  if (length(levs) < 2) return("fewer than two categories left after removing missing values")
+  if (sd(small[[num_col]]) == 0) return("numeric column is constant; model undefined")
+  
+  f <- reformulate(paste0("`", cat_col, "`"), response = paste0("`", num_col, "`"))
+  fit <- stats::lm(f, data = small)
+  g <- broom::glance(fit)
+  co <- broom::tidy(fit) |> filter(term != "(Intercept)")
+  co$level <- levs[-1]       # treatment contrasts: one row per non-reference level, in level order
+  
+  line1 <- paste0(nrow(small), " rows, ", length(levs), " groups; reference group: ", levs[1],
+                  " (mean ", fmt_num(unname(stats::coef(fit)[1])), ")")
+  line2 <- paste0("R-squared = ", round(g$r.squared, 3), " (adjusted ", round(g$adj.r.squared, 3), "); ",
+                  "F(", g$df, ", ", g$df.residual, ") = ", fmt_num(g$statistic), ", ", format_p(g$p.value))
+  co <- co |> arrange(desc(abs(estimate)))
+  shown <- head(co, max_terms)
+  coef_lines <- paste0("  ", shown$level, " vs ", levs[1], ": ", fmt_num(shown$estimate, sign = TRUE),
+                       " (SE ", fmt_num(shown$std.error), ", ", sapply(shown$p.value, format_p), ")")
+  if (nrow(co) > max_terms) {
+    coef_lines <- c(coef_lines, paste0("  ... and ", nrow(co) - max_terms, " more groups"))
+  }
+  paste(c(line1, line2, "differences from reference group:", coef_lines), collapse = "\n")
+}
+
+profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL) {
+  num <- numeric_cols(df, exclude_columns)
+  if (ncol(num) == 0) return("no numeric columns")
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
+  if (ncol(cat_cols) == 0) return("no categorical columns")
+  groupable <- cat_cols[sapply(cat_cols, keep_col, min_category_size = min_category_size)]
+  if (ncol(groupable) == 0) return("no categorical columns with enough rows")
+  pairs <- crossing(cat_col = names(groupable), num_col = names(num))
+  blocks <- map2_chr(pairs$cat_col, pairs$num_col, function(cat_name, num_name) {
+    profile_one_ols(df, cat_name, num_name, min_category_size)
+  })
+  headings <- paste0(pairs$cat_col, " -> ", pairs$num_col)
+  labeled <- paste0(headings, "\n", blocks)
+  note <- paste0("each model has one categorical predictor, so effects are not adjusted for each other; ",
+                 "rows are treated as independent; p-values are not adjusted for multiple comparisons")
+  paste(c(labeled, note), collapse = "\n\n")
+}
+
+# ---------------------------------------------------------------------------
+# Report: run every step, write one Markdown file
+# ---------------------------------------------------------------------------
+
+build_report <- function(df, name = "dataset", min_category_size = 10, exclude_columns = NULL) {
+  steps <- list(
+    "Shape"                      = function() profile_shape(df),
+    "Column types"               = function() profile_types(df),
+    "Missing values"             = function() profile_missing(df),
+    "Duplicate rows"             = function() profile_duplicates(df),
+    "Numeric summary"            = function() profile_numeric(df),
+    "Categorical summary"        = function() profile_categorical(df),
+    "Group means"                = function() profile_groups(df, min_category_size),
+    "Categorical x categorical"  = function() profile_crosstab(df, min_category_size),
+    "Numeric bivariate"          = function() profile_bivariate(df, exclude_columns),
+    "OLS"                        = function() profile_ols(df, min_category_size, exclude_columns)
+  )
+  # one failing step shouldn't lose the rest of the report
+  sections <- lapply(steps, function(f) {
+    tryCatch(f(), error = function(e) paste0("step failed: ", conditionMessage(e)))
+  })
+  structure(list(name = name, sections = sections), class = "eda_report")
+}
+
+write_report <- function(report, path) {
+  # plain-text sections go in code fences so line breaks survive Markdown rendering
+  body <- paste0("## ", names(report$sections), "\n\n```\n", unlist(report$sections), "\n```\n")
+  text <- c(paste0("# EDA Report: ", report$name),
+            paste0("Generated ", format(Sys.time(), "%Y-%m-%d %H:%M")),
+            "",
+            body)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  writeLines(paste(text, collapse = "\n"), path)
+  invisible(path)
+}
+
+# Usage:
+#   report <- build_report(df, name = "my_data", min_category_size = 10, exclude_columns = c("id"))
+#   write_report(report, "output/my_data_eda.md")
 
