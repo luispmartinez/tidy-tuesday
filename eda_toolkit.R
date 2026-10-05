@@ -157,6 +157,18 @@ if (p_value < 0.0005) {
   paste(lines, collapse = "\n")
 }
 
-
+profile_crosstab <- function(df, min_category_size = 10) {
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  if (ncol(cat_cols) < 2) return("fewer than two categorical columns")
+  groupable <- cat_cols[sapply(cat_cols, keep_col, min_category_size = min_category_size)]
+  if (ncol(groupable) < 2) return("fewer than two categorical columns with enough rows")
+  pairs <- combn(names(groupable), 2)
+  blocks <- sapply(seq_len(ncol(pairs)), function(i) {
+    profile_one_cross(df, pairs[1, i], pairs[2, i], min_category_size)
+  })
+  headings <- paste0(pairs[1, ], " x ", pairs[2, ])
+  labeled <- paste0(headings, "\n", blocks)
+  paste(labeled, collapse = "\n\n")
+}
 
 
