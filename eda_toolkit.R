@@ -101,5 +101,26 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
   small <- df |> filter(.data[[cat_a]] %in% keep_a, .data[[cat_b]] %in% keep_b)
   if (length(keep_a) < 2 || length(keep_b) < 2) return (paste0("fewer than two categories with at least ", min_category_size, " rows in ", cat_a, " or ", cat_b))
   tab <- table(small[[cat_a]], small[[cat_b]])
-  dim(tab)
+  res <- suppressWarnings(stats::chisq.test(tab))
+  weak <- mean(res$expected < 5)
+  p_note <- "chi-square p-value"            # label for the normal case
+  p_value <- res$p.value
+  if (weak > 0.2) {
+    set.seed(1)
+    sim <- stats::chisq.test(tab, simulate.p.value = TRUE)
+    p_value <- sim$p.value
+    p_note <- "simulated p-value"
+  }
+  strongest <- which(abs(res$stdres) > resid_cutoff, arr.ind = TRUE)
+  line1 <- paste0(
+    nrow(tab), " x ",
+    ncol(tab),
+    " (", cat_a, " x ", cat_b, ")"
+  )
+  line2 <- paste0(
+    nrow(small), " of ",
+    nrow(df), " rows kept"
+  )
+  lines <- c(line1, line2)
+  paste(lines, collapse = "\n")
 }
