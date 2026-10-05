@@ -125,15 +125,11 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     round(zero_share * 100), "% of cells are zero; ",
     round(weak * 100), "% have expected count under 5"
   )
-if (p_value < 0.0005) {
-    p_text <- "< 0.0005"
-  } else {
-    p_text <- paste0("= ", round(p_value, 4))
-  }
+  p_text <- format_p(p_value)
   strongest <- which(abs(res$stdres) > resid_cutoff, arr.ind = TRUE)
   line4 <- paste0(
     "chi-square = ",round(res$statistic, 1), " (df = ",
-    res$parameter, "); ", p_note, " ", p_text
+    res$parameter, "); ", p_note, p_text
   )
   lines <- c(line1, line2, line3, line4)
   heading <- paste0("cells beyond +/-", resid_cutoff, " (adjusted residual)")
