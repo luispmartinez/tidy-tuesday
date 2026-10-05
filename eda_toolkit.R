@@ -196,8 +196,8 @@ profile_cor <- function(df) {
 }
 
 format_p <- function(p) {
-  if (is.na(p)) return("p = NA")
-  if (p < 0.0005) "p < 0.0005" else paste0("p = ", round(p, 4))
+  if (is.na(p)) return(" = undefined")
+  if (p < 0.0005) " < 0.0005" else paste0(" = ", format(round(p, 4), scientific = FALSE))
 }
 
 # 4 significant digits, thousands separators, explicit sign when asked
