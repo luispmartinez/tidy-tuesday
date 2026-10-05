@@ -111,7 +111,6 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     p_value <- sim$p.value
     p_note <- "simulated p-value"
   }
-  share <- round(mean(tab == 0) * 100)
   zero_share <- mean(tab == 0)
   line1 <- paste0(
     nrow(tab), " x ",
@@ -126,7 +125,7 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     round(zero_share * 100), "% of cells are zero; ",
     round(weak * 100), "% have expected count under 5"
   )
-  p_text <- if (p_value < 0.0005) {
+if (p_value < 0.0005) {
     p_text <- "< 0.0005"
   } else {
     p_text <- paste0("= ", round(p_value, 4))
@@ -137,8 +136,27 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
     res$parameter, "); ", p_note, " ", p_text
   )
   lines <- c(line1, line2, line3, line4)
-  line5 <- if (weak > 0.2) {
+  heading <- paste0("cells beyond +/-", resid_cutoff, " (adjusted residual)")
+  if (weak > 0.2) {
     lines <- c(lines, "table is sparse; treat the test as a rough guide, and rows are not independent.")
+  }
+  if (nrow(strongest) > 0) {
+    idx <- strongest
+    cells <- tibble(
+      fam  = rownames(res$stdres)[idx[, "row"]],
+      ctry = colnames(res$stdres)[idx[, "col"]],
+      z    = res$stdres[idx]
+    ) |> arrange(desc(abs(z)))
+    dir <- ifelse(cells$z > 0, "more", "fewer")
+    zs <- sprintf("%+.1f", cells$z) 
+    cell_lines <-paste0(cells$fam, " x ", cells$ctry, ": ", zs, " (", dir, ")" )
+    lines <- c(lines, heading, cell_lines)
+  } else {
+    lines <- c(lines, paste0("no cells beyond +/-", resid_cutoff))
   }
   paste(lines, collapse = "\n")
 }
+
+
+
+
