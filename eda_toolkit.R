@@ -182,6 +182,15 @@ profile_one_cor <- function(df, num_a, num_b) {
   paste0(num_a, " x ", num_b, ": r = ", round(unname(ct$estimate), 2), " (n = ", unname(n), ", p ", p_text, ")" )
 }
 
+profile_cor <- function(df) {
+  num <- df[sapply(df, is.numeric)]
+  if (ncol(num) < 2) return("fewer than two numeric columns")
+  pairs <- combn(names(num), 2)
+  lines <- sapply(seq_len(ncol(pairs)), function(i) {
+    profile_one_cor(df, pairs[1, i], pairs[2, i])
+  })
+  paste(lines, collapse = "\n")
+}
 
 format_p <- function(p) {
   if (is.na(p)) return("p = NA")
