@@ -173,6 +173,8 @@ profile_crosstab <- function(df, min_category_size = 10) {
 
 profile_one_cor <- function(df, num_a, num_b) {
   pair <- na.omit(df[c(num_a, num_b)])
+  if (nrow(pair)<3) return(paste0(num_a, " x ", num_b, ": fewer than 3 complete rows"))
+  if (sd(pair[[1]]) == 0 || sd(pair[[2]]) == 0) return(paste0(num_a, " x ", num_b, ": one column is constant; correlation undefined"))
   ct <- cor.test(pair[[1]], pair[[2]])
   n <- ct$parameter + 2
   if (ct$p.value < 0.0005) {
