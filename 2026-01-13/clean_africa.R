@@ -12,7 +12,7 @@ d <- df |> distinct()
 # Step 5: Give each language a unique id
 d <- d |> group_by(language) |> mutate(n_counts = n_distinct(native_speakers)) |> ungroup()
 d <- d |> mutate(
-  language = if_else(n_counts > 1,
+  language_id = if_else(n_counts > 1,
                         paste0(language, " (", format(native_speakers, big.mark = ",", trim = TRUE), ")"),
                         language)
 )
@@ -40,3 +40,12 @@ stopifnot(
   "drop file has a different row count" = nrow(df) == 796
 )
 # Step 8: Write the clean CSV
+# (create the folder if needed, drop the helper column, write the file, read it back to check)
+dir.create(OUTPUT_FOLDER, recursive = TRUE, showWarnings = FALSE)
+out <- d |> select(-n_counts)
+write_csv(out, file.path(OUTPUT_FOLDER, "africa_clean.csv"))
+check <- read_csv(file.path(OUTPUT_FOLDER, "africa_clean.csv"), show_col_types = FALSE)
+stopifnot(
+  "written file does not match" = nrow(check) == 762, 
+  "written file does not have 6 columns" = ncol(check) == 6
+  )
