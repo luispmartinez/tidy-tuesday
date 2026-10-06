@@ -248,7 +248,7 @@ profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_te
   paste(c(line1, line2, "differences from reference group:", coef_lines, skew_line), collapse = "\n")
 }
 
-profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL) {
+profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL, skew_ratio = 3) {
   num <- numeric_cols(df, exclude_columns)
   if (ncol(num) == 0) return("no numeric columns")
   cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
