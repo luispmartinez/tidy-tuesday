@@ -24,9 +24,9 @@ profile_duplicates <- function(df){
   paste0(sum(duplicated(df)), " duplicate rows")
 }
 
-profile_numeric <- function(df) {
+profile_numeric <- function(df, exclude_columns = NULL) {
   fmt <- function(v) format(v, big.mark = ",", scientific = FALSE)
-  num <- df[sapply(df, is.numeric)] 
+  num <- numeric_cols(df, exclude_columns) 
   if (ncol(num) == 0) return("no numeric columns")
   lines <- sapply(num, function(x) {
     paste0("min ", fmt(min(x, na.rm = TRUE)),
@@ -45,8 +45,9 @@ profile_one_cat <- function(x, n = 5) {
   paste(lines, collapse = "\n")
 }
 
-profile_categorical <- function(df){
+profile_categorical <- function(df, exclude_columns = NULL){
   cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
   if (ncol(cat_cols) == 0) return ("no categorical columns")
   blocks <- sapply(cat_cols, profile_one_cat)
   labeled <- paste0(names(blocks), "\n", blocks)
@@ -59,10 +60,10 @@ keep_col <- function(x, min_category_size = 10) {
      }
 
 profile_groups <- function(df, min_category_size = 10, exclude_columns = NULL ){
-  num <- df[sapply(df, is.numeric)]
   num <- numeric_cols(df, exclude_columns)
   if (ncol(num) == 0) return("no numeric columns")
   cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
   if (ncol(cat_cols) == 0) return ("no categorical columns")
   groupable <- cat_cols[ sapply(cat_cols, keep_col, min_category_size = min_category_size) ]
   if (ncol(groupable) == 0) return("no categorical columns with enough rows")
@@ -179,8 +180,8 @@ profile_one_cor <- function(df, num_a, num_b) {
   paste0(num_a, " x ", num_b, ": r = ", round(unname(ct$estimate), 2), " (n = ", unname(n), ", p", p_text, ")" )
 }
 
-profile_cor <- function(df) {
-  num <- df[sapply(df, is.numeric)]
+profile_cor <- function(df, exclude_columns = NULL) {
+  num <- numeric_cols(df, exclude_columns)
   if (ncol(num) < 2) return("fewer than two numeric columns")
   pairs <- combn(names(num), 2)
   lines <- sapply(seq_len(ncol(pairs)), function(i) {
@@ -279,11 +280,11 @@ build_report <- function(df, name = "dataset", min_category_size = 10, exclude_c
     "Column types"               = function() profile_types(df),
     "Missing values"             = function() profile_missing(df),
     "Duplicate rows"             = function() profile_duplicates(df),
-    "Numeric summary"            = function() profile_numeric(df),
-    "Categorical summary"        = function() profile_categorical(df),
+    "Numeric summary"            = function() profile_numeric(df, exclude_columns),
+    "Categorical summary"        = function() profile_categorical(df, exclude_columns),
     "Group means"                = function() profile_groups(df, min_category_size, exclude_columns),
     "Categorical x categorical"  = function() profile_crosstab(df, min_category_size, exclude_columns),
-    "Numeric bivariate"          = function() profile_cor(df),
+    "Numeric bivariate"          = function() profile_cor(df, exclude_columns = NULL),
     "OLS"                        = function() profile_ols(df, min_category_size, exclude_columns)
   )
   # one failing step shouldn't lose the rest of the report
