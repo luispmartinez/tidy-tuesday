@@ -209,7 +209,7 @@ numeric_cols <- function(df, exclude_columns = NULL) {
 # OLS: one-way model per (categorical, numeric) pair, num ~ cat
 # ---------------------------------------------------------------------------
 
-profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_terms = 10) {
+profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_terms = 10, skew_ratio = 3) {
   keep <- big_enough(df[[cat_col]], min_category_size)
   if (length(keep) < 2) {
     return(paste0("fewer than two categories with at least ", min_category_size, " rows"))
@@ -233,6 +233,11 @@ profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_te
                   " (mean ", fmt_num(unname(stats::coef(fit)[1])), ")")
   line2 <- paste0("R-squared = ", round(g$r.squared, 3), " (adjusted ", round(g$adj.r.squared, 3), "); ",
                   "F(", g$df, ", ", g$df.residual, ") = ", fmt_num(g$statistic), ", p", format_p(g$p.value))
+  x <- small[[num_col]]
+  skew_line <- NULL
+  if (median(x) > 0 && mean(x) / median(x) > skew_ratio) {
+    skew_line <- "outcome is highly skewed; a few large values can drive R-squared"
+  }
   co <- co |> arrange(desc(abs(estimate)))
   shown <- head(co, max_terms)
   coef_lines <- paste0("  ", shown$level, " vs ", levs[1], ": ", fmt_num(shown$estimate, sign = TRUE),
@@ -240,7 +245,7 @@ profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_te
   if (nrow(co) > max_terms) {
     coef_lines <- c(coef_lines, paste0("  ... and ", nrow(co) - max_terms, " more groups"))
   }
-  paste(c(line1, line2, "differences from reference group:", coef_lines), collapse = "\n")
+  paste(c(line1, line2, "differences from reference group:", coef_lines, skew_line), collapse = "\n")
 }
 
 profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL) {
