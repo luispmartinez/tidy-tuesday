@@ -284,7 +284,7 @@ build_report <- function(df, name = "dataset", min_category_size = 10, exclude_c
   )
   # one failing step shouldn't lose the rest of the report
   sections <- lapply(steps, function(f) {
-    tryCatch(f(), error = function(e) paste0("step failed: ", conditionMessage(e)))
+    tryCatch(f(), error = function(e) paste0("step failed: ", cli::ansi_strip(conditionMessage(e))))
   })
   structure(list(name = name, sections = sections), class = "eda_report")
 }
