@@ -21,14 +21,13 @@ profile_duplicates <- function(df){
 }
 
 profile_numeric <- function(df, exclude_columns = NULL) {
-  fmt <- function(v) format(v, big.mark = ",", scientific = FALSE)
   num <- numeric_cols(df, exclude_columns) 
   if (ncol(num) == 0) return("no numeric columns")
   lines <- sapply(num, function(x) {
-    paste0("min ", fmt(min(x, na.rm = TRUE)),
-           ", median ", fmt(median(x, na.rm = TRUE)),
-           ", mean ", fmt(round(mean(x, na.rm = TRUE))),
-           ", max ", fmt(max(x, na.rm = TRUE)))
+    paste0("min ", fmt_num(min(x, na.rm = TRUE)),
+           ", median ", fmt_num(median(x, na.rm = TRUE)),
+           ", mean ", fmt_num(mean(x, na.rm = TRUE)),
+           ", max ", fmt_num(max(x, na.rm = TRUE)))
   })
   paste(paste0(names(lines), ": ", lines), collapse = "\n")
 }
