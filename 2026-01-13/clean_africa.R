@@ -39,11 +39,91 @@ stopifnot(
   "family count is not 12" = n_distinct(d$family) == 12,
   "drop file has a different row count" = nrow(df) == 796
 )
-# Step 8: Write the clean CSV
+
+# Step 8: Country lookup
+lookup <- tribble(
+  ~country,                   ~zone,
+  # North and Sahara
+  "Morocco",                  "North and Sahara",
+  "Algeria",                  "North and Sahara",
+  "Tunisia",                  "North and Sahara",
+  "Libya",                    "North and Sahara",
+  "Egypt",                    "North and Sahara",
+  "Mauritania",               "North and Sahara",
+  # West
+  "Senegal",                  "West",
+  "Gambia",                   "West",
+  "Guinea",                   "West",
+  "Sierra Leone",             "West",
+  "Liberia",                  "West",
+  "Ivory Coast",              "West",
+  "Mali",                     "West",
+  "Burkina Faso",             "West",
+  "Ghana",                    "West",
+  "Togo",                     "West",
+  "Benin",                    "West",
+  "Niger",                    "West",
+  "Nigeria",                  "West",
+  # Central
+  "Cameroon",                 "Central",
+  "Equatorial Guinea",        "Central",
+  "Gabon",                    "Central",
+  "Congo",                    "Central",
+  "Central African Republic", "Central",
+  "Chad",                     "Central",
+  # Horn and Nile belt
+  "Sudan",                    "Horn and Nile belt",
+  "South Sudan",              "Horn and Nile belt",
+  "Eritrea",                  "Horn and Nile belt",
+  "Ethiopia",                 "Horn and Nile belt",
+  "Djibouti",                 "Horn and Nile belt",
+  "Somalia",                  "Horn and Nile belt",
+  # East
+  "Uganda",                   "East",
+  "Kenya",                    "East",
+  "Rwanda",                   "East",
+  "Burundi",                  "East",
+  "Tanzania",                 "East",
+  # Southern
+  "Angola",                   "Southern",
+  "Zambia",                   "Southern",
+  "Malawi",                   "Southern",
+  "Mozambique",               "Southern",
+  "Zimbabwe",                 "Southern",
+  "Botswana",                 "Southern",
+  "Namibia",                  "Southern",
+  "South Africa",             "Southern",
+  "Lesotho",                  "Southern",
+  "Eswatini",                 "Southern",
+  # Islands
+  "Madagascar",               "Islands",
+  "Comoros",                  "Islands",
+  "Mauritius",                "Islands",
+  "Seychelles",               "Islands",
+  "Cape Verde",               "Islands"
+)
+lookup <- lookup |> mutate(
+  order = row_number(),
+  label = case_when(
+    country == "Congo"  ~ "Congo (Rep. + DR)",
+    country == "Guinea" ~ "Guinea (+ Bissau)",
+    .default = country
+  )
+)
+
+stopifnot(
+  "a country in the data has no lookup row"     = length(setdiff(unique(d$country), lookup$country)) == 0,
+  "a lookup row matches no country in the data" = length(setdiff(lookup$country, d$country)) == 0,
+  "a country appears twice in the lookup"       = !anyDuplicated(lookup$country),
+  "order is not 1 to 51"                        = all(sort(lookup$order) == 1:51)
+)
+
+# Step 9: Write the clean CSV
 # (create the folder if needed, drop the helper column, write the file, read it back to check)
 dir.create(OUTPUT_FOLDER, recursive = TRUE, showWarnings = FALSE)
 out <- d |> select(-n_counts)
 write_csv(out, file.path(OUTPUT_FOLDER, "africa_clean.csv"))
+write_csv(lookup, file.path(OUTPUT_FOLDER, "africa_countries.csv"))
 check <- read_csv(file.path(OUTPUT_FOLDER, "africa_clean.csv"), show_col_types = FALSE)
 stopifnot(
   "written file does not match" = nrow(check) == 762, 
