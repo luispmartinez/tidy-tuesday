@@ -12,7 +12,7 @@ d <- df |> distinct()
 # Step 5: Give each language a unique id
 d <- d |> group_by(language) |> mutate(n_counts = n_distinct(native_speakers)) |> ungroup()
 d <- d |> mutate(
-  language_id = if_else(n_counts > 1,
+  language = if_else(n_counts > 1,
                         paste0(language, " (", format(native_speakers, big.mark = ",", trim = TRUE), ")"),
                         language)
 )
@@ -27,4 +27,16 @@ d <- d |> mutate(
   )
 )
 # Step 7: Checks
+stopifnot(
+  "row count is not 762" = nrow(d) == 762,
+  "language_id has missing values" = !anyNA(d$language_id),
+  "family has missing values"      = !anyNA(d$family),
+  "country has missing values"     = !anyNA(d$country),
+  "native_speakers has missing values" = !anyNA(d$native_speakers),
+  "a language appears more than once in a country" = nrow(count(d, language_id, country) |> filter(n > 1)) == 0,
+  "a language_id maps to more than one speaker count" = nrow(d |> group_by(language_id) |> summarise(k = n_distinct(native_speakers)) |> filter(k > 1)) == 0,
+  "an old family label is still in family" = !any(d$family %in% c("Afro-Asiatic", "Language", "English", "French", "Portuguese", "Arabic-based", "Kongo-based")),
+  "family count is not 12" = n_distinct(d$family) == 12,
+  "drop file has a different row count" = nrow(df) == 796
+)
 # Step 8: Write the clean CSV
