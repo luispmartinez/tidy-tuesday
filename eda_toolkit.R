@@ -284,7 +284,7 @@ build_report <- function(df, name = "dataset", min_category_size = 10, exclude_c
     "Categorical summary"        = function() profile_categorical(df, exclude_columns),
     "Group means"                = function() profile_groups(df, min_category_size, exclude_columns),
     "Categorical x categorical"  = function() profile_crosstab(df, min_category_size, exclude_columns),
-    "Numeric bivariate"          = function() profile_cor(df, exclude_columns = NULL),
+    "Numeric bivariate"          = function() profile_cor(df, exclude_columns),
     "OLS"                        = function() profile_ols(df, min_category_size, exclude_columns)
   )
   # one failing step shouldn't lose the rest of the report
