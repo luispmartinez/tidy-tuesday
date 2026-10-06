@@ -204,47 +204,6 @@ numeric_cols <- function(df, exclude_columns = NULL) {
   num[!names(num) %in% exclude_columns]
 }
 
-# ---------------------------------------------------------------------------
-# Numeric bivariate: Pearson correlation for every pair of numeric columns
-# ---------------------------------------------------------------------------
-
-pair_stats <- function(df, col_a, col_b) {
-  pair <- stats::na.omit(df[, c(col_a, col_b)])
-  n <- nrow(pair)
-  out <- tibble(col_a = col_a, col_b = col_b, n = n,
-                r = NA_real_, dof = NA_real_, p = NA_real_, note = "")
-  if (n < 3) {
-    out$note <- "fewer than 3 complete rows"
-    return(out)
-  }
-  if (sd(pair[[1]]) == 0 || sd(pair[[2]]) == 0) {
-    out$note <- "one column is constant; correlation undefined"
-    return(out)
-  }
-  res <- stats::cor.test(pair[[1]], pair[[2]])
-  out$r <- unname(res$estimate)
-  out$dof <- unname(res$parameter)
-  out$p <- res$p.value
-  out
-}
-
-profile_bivariate <- function(df, exclude_columns = NULL) {
-  num <- numeric_cols(df, exclude_columns)
-  if (ncol(num) < 2) return("fewer than two numeric columns")
-  pairs <- combn(names(num), 2)
-  stats_tbl <- map_dfr(seq_len(ncol(pairs)), function(i) pair_stats(df, pairs[1, i], pairs[2, i]))
-  stats_tbl <- stats_tbl |> arrange(desc(abs(r)))   # NA pairs sort last
-  lines <- ifelse(
-    stats_tbl$note == "",
-    paste0(stats_tbl$col_a, " x ", stats_tbl$col_b, ": r = ", sprintf("%+.3f", stats_tbl$r),
-           " (df = ", stats_tbl$dof, "), ", sapply(stats_tbl$p, format_p),
-           ", n = ", stats_tbl$n),
-    paste0(stats_tbl$col_a, " x ", stats_tbl$col_b, ": ", stats_tbl$note)
-  )
-  note <- paste0(nrow(stats_tbl), " pairs tested, sorted by |r|; p-values are not adjusted for ",
-                 "multiple comparisons, and rows are treated as independent")
-  paste(c(lines, "", note), collapse = "\n")
-}
 
 # ---------------------------------------------------------------------------
 # OLS: one-way model per (categorical, numeric) pair, num ~ cat
@@ -273,11 +232,11 @@ profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_te
   line1 <- paste0(nrow(small), " rows, ", length(levs), " groups; reference group: ", levs[1],
                   " (mean ", fmt_num(unname(stats::coef(fit)[1])), ")")
   line2 <- paste0("R-squared = ", round(g$r.squared, 3), " (adjusted ", round(g$adj.r.squared, 3), "); ",
-                  "F(", g$df, ", ", g$df.residual, ") = ", fmt_num(g$statistic), ", ", format_p(g$p.value))
+                  "F(", g$df, ", ", g$df.residual, ") = ", fmt_num(g$statistic), ", p", format_p(g$p.value))
   co <- co |> arrange(desc(abs(estimate)))
   shown <- head(co, max_terms)
   coef_lines <- paste0("  ", shown$level, " vs ", levs[1], ": ", fmt_num(shown$estimate, sign = TRUE),
-                       " (SE ", fmt_num(shown$std.error), ", ", sapply(shown$p.value, format_p), ")")
+                       " (SE ", fmt_num(shown$std.error), ", p", sapply(shown$p.value, format_p), ")")
   if (nrow(co) > max_terms) {
     coef_lines <- c(coef_lines, paste0("  ... and ", nrow(co) - max_terms, " more groups"))
   }
