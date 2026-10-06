@@ -248,16 +248,17 @@ profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_te
   paste(c(line1, line2, "differences from reference group:", coef_lines, skew_line), collapse = "\n")
 }
 
-profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL, skew_ratio = skew_ratio) {
+profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL, skew_ratio = 3) {
   num <- numeric_cols(df, exclude_columns)
   if (ncol(num) == 0) return("no numeric columns")
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
   cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
   if (ncol(cat_cols) == 0) return("no categorical columns")
   groupable <- cat_cols[sapply(cat_cols, keep_col, min_category_size = min_category_size)]
   if (ncol(groupable) == 0) return("no categorical columns with enough rows")
   pairs <- crossing(cat_col = names(groupable), num_col = names(num))
   blocks <- map2_chr(pairs$cat_col, pairs$num_col, function(cat_name, num_name) {
-    profile_one_ols(df, cat_name, num_name, min_category_size)
+    profile_one_ols(df, cat_name, num_name, min_category_size, skew_ratio = skew_ratio)
   })
   headings <- paste0(pairs$cat_col, " -> ", pairs$num_col)
   labeled <- paste0(headings, "\n", blocks)
