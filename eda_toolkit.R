@@ -58,8 +58,9 @@ keep_col <- function(x, min_category_size = 10) {
             # return TRUE if the column should be grouped, FALSE if skipped
      }
 
-profile_groups <- function(df, min_category_size = 10 ){
+profile_groups <- function(df, min_category_size = 10, exclude_columns = NULL ){
   num <- df[sapply(df, is.numeric)]
+  num <- numeric_cols(df, exclude_columns)
   if (ncol(num) == 0) return("no numeric columns")
   cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
   if (ncol(cat_cols) == 0) return ("no categorical columns")
@@ -95,7 +96,7 @@ big_enough <- function(x, min_category_size = 10) {
   names(counts)[keep]
 }
 
-profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cutoff = 5) {
+profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cutoff = 5, exclude_columns = NULL) {
   keep_a <- big_enough(df[[cat_a]], min_category_size)
   keep_b <- big_enough(df[[cat_b]], min_category_size)
   small <- df |> filter(.data[[cat_a]] %in% keep_a, .data[[cat_b]] %in% keep_b)
@@ -153,8 +154,9 @@ profile_one_cross <- function(df, cat_a, cat_b, min_category_size = 10, resid_cu
   paste(lines, collapse = "\n")
 }
 
-profile_crosstab <- function(df, min_category_size = 10) {
+profile_crosstab <- function(df, min_category_size = 10, exclude_columns = NULL) {
   cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
   if (ncol(cat_cols) < 2) return("fewer than two categorical columns")
   groupable <- cat_cols[sapply(cat_cols, keep_col, min_category_size = min_category_size)]
   if (ncol(groupable) < 2) return("fewer than two categorical columns with enough rows")
@@ -279,9 +281,9 @@ build_report <- function(df, name = "dataset", min_category_size = 10, exclude_c
     "Duplicate rows"             = function() profile_duplicates(df),
     "Numeric summary"            = function() profile_numeric(df),
     "Categorical summary"        = function() profile_categorical(df),
-    "Group means"                = function() profile_groups(df, min_category_size),
-    "Categorical x categorical"  = function() profile_crosstab(df, min_category_size),
-    "Numeric bivariate"          = function() profile_bivariate(df, exclude_columns),
+    "Group means"                = function() profile_groups(df, min_category_size, exclude_columns),
+    "Categorical x categorical"  = function() profile_crosstab(df, min_category_size, exclude_columns),
+    "Numeric bivariate"          = function() profile_cor(df),
     "OLS"                        = function() profile_ols(df, min_category_size, exclude_columns)
   )
   # one failing step shouldn't lose the rest of the report
