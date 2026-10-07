@@ -16,6 +16,14 @@ X_MIN   <- 0
 LABEL_X <- -1.5
 BAND_PAD  <- 3      # band extends this far above and below the tallest bar
 LABEL_GAP <- 8      # zone labels sit this far below the bands
+TITLE_Y     <- MAX_HALF + BAND_PAD + 16
+SUB_Y       <- MAX_HALF + BAND_PAD + 8
+LEGEND_Y    <- -(MAX_HALF + BAND_PAD + LABEL_GAP + 8)
+FOOT_Y      <- -(MAX_HALF + BAND_PAD + LABEL_GAP + 17)
+LEGEND_STEP <- 15
+CANVAS_PATH <- "~/TableauData/Tidy Tuesday/africa_canvas.csv"
+LAT_SCALE   <- 0.5
+LNG_SCALE   <- 1
 
 # Step 3: Read the cleaned data and the country lookup
 d      <- read_csv(CLEAN_PATH, show_col_types = FALSE)
@@ -107,6 +115,43 @@ zone_labels <- zone_span |>
   mutate(layer = "zone_labels", key = paste0("zone_", zone_no),
          dot_x = x_mid, dot_y = -(MAX_HALF + BAND_PAD + LABEL_GAP), text = short) |>      # -(MAX_HALF + BAND_PAD + LABEL_GAP)
   select(layer, key, dot_x, dot_y, text)
-# Step 8: Title and one-line footnote
-# Step 9: Combine and verify (unique keys, row-count assertions)
+# Step 8: Title, legend and footnote
+titles <- tibble(
+  layer = "title", key = c("title_main", "title_sub"),
+  dot_x = X_MIN, dot_y = c(TITLE_Y, SUB_Y),
+  text = c("Niger–Congo languages fill the west and south",
+           "A belt of Nilo-Saharan and Afroasiatic languages stands out from Chad to Ethiopia"),
+  is_emphasis = c(TRUE, FALSE))
+
+footnote <- tibble(layer = "footer", key = "footer_source", dot_x = X_MIN, dot_y = FOOT_Y,
+                   text = "Source: Wikipedia “Languages of Africa” via TidyTuesday, 2026-01-13. Languages with no published speaker count are excluded.",
+                   is_emphasis = FALSE)
+
+legend_items <- tibble(family_group = FAMILY_ORDER, i = 1:6, x0 = X_MIN + (i - 1) * LEGEND_STEP)
+
+legend_swatches <- legend_items |>
+  cross_join(tibble(point_id = 1:5, sx = c(0, 1, 1, 0, 0), sy = c(0, 0, 1, 1, 0))) |>
+  mutate(layer = "legend_swatches", segment_id = paste0("legend_", i), key = paste0(segment_id, "_", point_id),
+         dot_x = x0 + sx * 1.6, dot_y = LEGEND_Y + sy * 3) |>
+  select(layer, key, segment_id, point_id, dot_x, dot_y, family_group)
+
+legend_labels <- legend_items |>
+  mutate(layer = "legend_labels", key = paste0("legend_label_", i), dot_x = x0 + 2.2, dot_y = LEGEND_Y + 1.5, text = family_group) |>
+  select(layer, key, dot_x, dot_y, text)
+# Step 9: Combine and verify
+canvas <- bind_rows(bars, grid_lines, grid_labels, bands, zone_labels, titles, footnote, legend_swatches, legend_labels) |> # all nine layer tables
+  mutate(is_emphasis = coalesce(is_emphasis, FALSE))
+
+stopifnot(
+  "canvas row count is not 939"        = nrow(canvas) == 939,
+  "duplicate keys in the canvas"       = anyDuplicated(canvas$key) == 0,
+  "missing coordinates in the canvas"  = !anyNA(canvas$dot_x) && !anyNA(canvas$dot_y),
+  "bar row count is not 835"           = sum(canvas$layer == "bars") == 835
+)
+
+canvas <- canvas |> mutate(dot_y = dot_y * LAT_SCALE, dot_x = dot_x * LNG_SCALE)
 # Step 10: Write the canvas CSV
+write_csv(canvas, CANVAS_PATH)
+check <- read_csv(CANVAS_PATH, show_col_types = FALSE)
+stopifnot("written canvas does not have 939 rows" = nrow(check) == 939)
+
