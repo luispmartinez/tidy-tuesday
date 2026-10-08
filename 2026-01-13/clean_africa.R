@@ -38,6 +38,9 @@ stopifnot(
   "an old family label is still in family" = !any(d$family %in% c("Afro-Asiatic", "Language", "English", "French", "Portuguese", "Arabic-based", "Kongo-based")),
   "family count is not 12" = n_distinct(d$family) == 12,
   "drop file has a different row count" = nrow(df) == 796
+  "country count is not 51"      = n_distinct(d$country) == 51,
+  "language_id count is not 510" = n_distinct(d$language_id) == 510,
+  "language name count is not 502" = n_distinct(d$language) == 502,
 )
 
 # Step 8: Country lookup
