@@ -4,7 +4,7 @@ R code for [TidyTuesday](https://github.com/rfordatascience/tidytuesday) 2026, p
 
 ## Week 2: Languages of Africa (2026-01-13)
 
-**Viz:** [Africa Languages on Tableau Public](<TABLEAU_PUBLIC_URL>)
+**Viz:** [[Africa Languages on Tableau Public](<TABLEAU_PUBLIC_URL>](https://public.tableau.com/views/AfricaLanguages/AfricanLanguages))
 
 Mirrored bars count the languages in each of 51 African countries, split by language family. A map of Africa lights up the region of any bar or country you hover or click.
 
