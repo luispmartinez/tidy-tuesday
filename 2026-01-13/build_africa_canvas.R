@@ -28,7 +28,7 @@ LEGEND_STEP <- 15
 CANVAS_PATH <- "~/TableauData/Tidy Tuesday/africa_canvas.csv"
 LAT_SCALE   <- 0.5
 LNG_SCALE   <- 1
-CHAR_W <- c(title = 1.58, sub = 0.87, foot = 0.70, legend = 0.78, axis = 0.6)
+CHAR_W <- c(title = 1.64, sub = 0.94, foot = 0.73, legend = 0.78, axis = 0.6)
 LEFT_EDGE <- -41.3     # left edge of the whole composition (the Cape Verde marker)
 anchor_x <- function(x, text, align, char_w) {
   w <- nchar(text) * char_w
