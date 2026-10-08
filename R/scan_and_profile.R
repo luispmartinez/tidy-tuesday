@@ -1,11 +1,10 @@
 # Step 1: Load the toolkit
-# (source("eda_toolkit.R"), first line, so the tidyverse and the report functions exist)
-source("eda_toolkit.R")
+source("R/eda_toolkit.R")
 
 # Step 2: Settings
-# (DROP_FOLDER, REPORT_FOLDER, SKIP_EXISTING; the values you change from week to week)
-DROP_FOLDER   <- "2026-01-13/drop"
-REPORT_FOLDER <- "reports"
+WEEK          <- "2026-01-13"      # the one line to change each week; "tests" runs the sample inputs
+DROP_FOLDER   <- file.path(WEEK, "drop")
+REPORT_FOLDER <- file.path(WEEK, "reports")
 SKIP_EXISTING <- TRUE
 
 # Step 3: Read one input
