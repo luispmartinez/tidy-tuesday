@@ -2,7 +2,7 @@
 source("R/eda_toolkit.R")
 
 # Step 2: Settings
-WEEK          <- "2026-01-13"      # the one line to change each week; "tests" runs the sample inputs
+WEEK          <- "2026-01-20"      # the one line to change each week; "tests" runs the sample inputs
 DROP_FOLDER   <- file.path(WEEK, "drop")
 REPORT_FOLDER <- file.path(WEEK, "reports")
 SKIP_EXISTING <- TRUE
