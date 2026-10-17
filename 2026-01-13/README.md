@@ -4,6 +4,8 @@
 
 Mirrored bars count the languages in each of 51 African countries, split by language family. A map of Africa lights up the region of any bar or country you hover or click.
 
+[![Mirrored bar chart of languages per African country, by family, beside a map of Africa. Niger–Congo dominates, except a Nilo-Saharan and Afroasiatic belt from Chad to Ethiopia.](africa-languages.png)](https://public.tableau.com/views/AfricaLanguages/AfricanLanguages)
+
 **What the data shows:** Niger–Congo makes up 389 of the 510 languages (76%). A belt of Nilo-Saharan and Afroasiatic languages stands out from Chad to Ethiopia.
 
 ## How it fits together
