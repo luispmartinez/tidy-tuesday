@@ -28,6 +28,7 @@ size_flag <- read_csv(file.path(IN_FOLDER, "size_flag.csv"), show_col_types = FA
 headline <- read_csv(file.path(IN_FOLDER, "headline.csv"), show_col_types = FALSE)
 val <- function(tbl, size, col) tbl[[col]][tbl$company_size == size]
 round_share <- read_csv(file.path(IN_FOLDER, "round_share.csv"), show_col_types = FALSE)
+shift_summary <- read_csv(file.path(IN_FOLDER, "shift_summary.csv"), show_col_types = FALSE)
 # Q: size_summary has n, p25, median, p75. Which numbers on the v3 sketch are NOT in it yet?
 # Q: which script should compute them, this one or Analyze_brazil.R? Why?
 
@@ -268,6 +269,12 @@ shadow_233 <- draw_labels(LABELS_233 |> filter(id == "n233") |>
 money_axis <- function(v) ifelse(v >= 1e9, paste0("R$", v / 1e9, "B"),
                                  ifelse(v >= 1e6, paste0("R$", v / 1e6, "M"), paste0("R$", v / 1e3, "K")))
 
+shift_os <- shift_summary |> filter(higher == "other", lower == "small-enterprise")
+stopifnot("expected one Other vs Small row"   = nrow(shift_os) == 1,
+          "footnote says p < 0.001, but it isn't" = shift_os$p.value < 0.001)
+test_note <- paste0("Rank tests: a random Other firm out-declares a random Small one about ",
+                    round(shift_os$prob_higher * 100), "% of the time (estimated shift about ",
+                    money(shift_os$estimate), ", p < 0.001).")
 # 1. Fixed-position labels. Strings with numbers are built from tables, not typed.
 LABELS_FIXED <- tribble(
   ~id,          ~string, ~x, ~top, ~size, ~font, ~color, ~align,
@@ -288,9 +295,11 @@ LABELS_FIXED <- tribble(
   "takeaway",   paste0("With the ", flag_share$n_flagged, ", small beats other. Without them, other leads ",
                        headline$mean_ratio_small_label, " to 1."),                          680, 716, 20, "body", PAL[["bone"]], "left",
   "foot1",      "Size is set by revenue, so a capital gap may partly reflect the definitions. Medians, not means: the data is skewed and full of round amounts.",
-  40,  758, 14, "body", PAL[["dim"]],  "left",
+  40,  750, 14, "body", PAL[["dim"]],  "left",
+  "foot_test",  test_note,
+  40,  766, 14, "body", PAL[["dim"]],  "left",
   "foot2",      "Source: Open data CNPJ via TidyTuesday · Created by Luis Pablo Martinez",
-  40,  777, 14, "body", PAL[["dim"]],  "left"
+  40,  782, 14, "body", PAL[["dim"]],  "left"
 )
 
 # 2. Axis labels: the text AND the position both come from the axis definitions
@@ -380,7 +389,7 @@ stopifnot(
     flag_share$n_flagged == sum(size_flag$n_flagged))
 must_have <- c("track_other", "track_prop_capital", "grid_strip_1", "grid_dumb_1", "dash_1", "stripe_top",
                "headline_sh", "n233_sh", "bar_other", "tick_other", "prop_capital", "dumb_other_ring_in",
-               "headline", "median_other", "n233", "takeaway", "leg_wi", "leg_dot")
+               "headline", "median_other", "n233", "takeaway", "leg_wi", "leg_dot", "foot_test")
 have      <- unique(sub("\\|.*$", "", canvas$poly_id))
 stopifnot("canvas is missing expected shapes" = all(must_have %in% have))
 
