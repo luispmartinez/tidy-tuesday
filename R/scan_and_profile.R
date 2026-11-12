@@ -1,11 +1,14 @@
 # Step 1: Load the toolkit
 source("R/eda_toolkit.R")
+source("R/clean_toolkit.R")
 
 # Step 2: Settings
-WEEK          <- "2026-01-27"      # the one line to change each week; "tests" runs the sample inputs
+WEEK          <- "2026-02-03"      # the one line to change each week; "tests" runs the sample inputs
 DROP_FOLDER   <- file.path(WEEK, "drop")
 REPORT_FOLDER <- file.path(WEEK, "reports")
 SKIP_EXISTING <- TRUE
+CLEAN_EXCLUDE <- c("harvest_status")    # reset to character(0). edible_plants: real label, not a placeholder
+if (!dir.exists(DROP_FOLDER)) stop("Drop folder not found: ", DROP_FOLDER)
 
 # Step 3: Read one input
 # (read_input: a CSV, or one sheet of a workbook)
@@ -44,14 +47,16 @@ report_name <- function(path, sheet = NA_character_) {
 
 # Step 6: Profile one input
 # (profile_input: skip if the report exists, otherwise read, build, write; returns a status)
-profile_input <- function(path, sheet = NA_character_, out_dir = "reports", skip_existing = TRUE) {
+profile_input <- function(path, sheet = NA_character_, out_dir = "reports", skip_existing = TRUE,
+                          clean_exclude = character(0)) {
   name <- report_name(path, sheet)
   out_path <- file.path(out_dir, paste0(name, "_eda.md"))
   if (file.exists(out_path) && skip_existing) return("skipped")
   tryCatch({
     data <- read_input(path, sheet = if (is.na(sheet)) NULL else sheet)
     if (nrow(data) == 0 || ncol(data) == 0) stop("input has no data")
-    report <- build_report(data, name)
+    cleaned <- clean_text(data, exclude = clean_exclude)
+    report  <- build_report(cleaned$data, name, cleaning_log = cleaned$log)
     write_report(report, out_path)
     "written"
   }, error = function(e) paste0("failed: ", cli::ansi_strip(conditionMessage(e))))
@@ -61,6 +66,7 @@ profile_input <- function(path, sheet = NA_character_, out_dir = "reports", skip
 # (list.files with the csv/xls/xlsx pattern, then drop Excel's ~$ lock files)
 files <- list.files(DROP_FOLDER , pattern = "\\.(csv|xlsx?)$", full.names = TRUE, ignore.case = TRUE)
 files <- files[!startsWith(basename(files), "~$")]
+if (length(files) == 0) stop("No csv/xlsx files in ", DROP_FOLDER)
 
 # Step 8: Build the inputs table
 # (one row per file, or per sheet for workbooks: tibble, map, unnest)
@@ -68,7 +74,7 @@ inputs <- tibble(path = files) |> mutate(sheet = map(path, list_sheets)) |> unne
 
 # Step 9: Run every input
 # (map2_chr over the table, calling profile_input once per row; keep the statuses)
-status <- map2_chr(inputs$path, inputs$sheet, function(p, s) profile_input(p, s, REPORT_FOLDER, SKIP_EXISTING))
+status <- map2_chr(inputs$path, inputs$sheet, function(p, s) profile_input(p, s, REPORT_FOLDER, SKIP_EXISTING, CLEAN_EXCLUDE))
 
 # Step 10: Summary
 # (how many written, skipped and failed, and the failure messages)

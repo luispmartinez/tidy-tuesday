@@ -6,7 +6,8 @@
 #   profile_*()      one report section each; every one returns ONE text string
 #   profile_one_*()  helpers that handle a single column or pair; the matching
 #                    profile_*() loops over them and labels each block
-#   build_report()   runs all ten sections; a failing section never stops the rest
+#   build_report()   runs a Summary (plus the cleaning log, if given) and the ten sections;
+#                    a failing section never stops the rest
 #   write_report()   saves the result as a Markdown file
 #
 # The ten sections, in report order
@@ -116,9 +117,9 @@ profile_categorical <- function(df, exclude_columns = NULL){
 # (rows divided by distinct values). Skips ID-like columns that have about one
 # row per value, where group summaries would mean nothing.
 keep_col <- function(x, min_category_size = 10) {
-            length(x)/ n_distinct(x) >=min_category_size
-            # return TRUE if the column should be grouped, FALSE if skipped
-     }
+  # TRUE when at least two categories have min_category_size or more non-missing rows
+  sum(table(x) >= min_category_size) >= 2
+}
 
 # Group means: the mean of each numeric column within each category of each
 # groupable categorical column (every categorical x numeric pairing).
@@ -143,22 +144,25 @@ profile_groups <- function(df, min_category_size = 10, exclude_columns = NULL ){
 }
 
 # Helper for profile_groups: the mean of ONE numeric column by ONE categorical
-# column. Lists groups with at least min_category_size rows, largest first, plus
-# a line saying how many smaller groups were left out.
+# column. n_valid counts the non-missing values the mean is actually based on
+# (rows counts every row in the group). Lists groups with at least
+# min_category_size valid values, largest first, plus a line saying how many
+# smaller groups were left out.
 profile_one_group <- function(df, cat_col, num_col, min_category_size = 10) {
   # .data[[name]] lets column names arrive as text
   s <- df |> group_by(.data[[cat_col]]) |>
-    summarise(n = n(), mean_value = mean(.data[[num_col]], na.rm = TRUE))
-  # keep only groups big enough to trust, largest first
-  kept <- s |> filter(n >= min_category_size) |> arrange(desc(n))
-  if (nrow(kept) == 0) return(paste0("no groups with at least ", min_category_size, " rows"))
+    summarise(rows = n(),
+              n_valid = sum(!is.na(.data[[num_col]])),
+              mean_value = if (n_valid > 0) mean(.data[[num_col]], na.rm = TRUE) else NA_real_)
+  # keep only groups with enough real values to trust, largest first
+  kept <- s |> filter(n_valid >= min_category_size) |> arrange(desc(n_valid))
+  if (nrow(kept) == 0) return(paste0("no groups with at least ", min_category_size, " non-missing values"))
   lines <- paste0(
-    kept[[cat_col]], " (n=", kept$n, 
-    "): mean ", format(round(kept$mean_value), 
-                       big.mark = ",", scientific = FALSE, trim = TRUE))
+    kept[[cat_col]], " (n=", kept$n_valid, " of ", kept$rows, " rows): mean ",
+    fmt_num(kept$mean_value))
   count <- nrow(s) - nrow(kept)
   if (count > 0) {
-    lines <- c(lines, paste0(count, " groups with fewer than ", min_category_size, " rows not shown"))
+    lines <- c(lines, paste0(count, " groups with fewer than ", min_category_size, " non-missing values not shown"))
   }
   paste(lines, collapse = "\n")
 }
@@ -304,6 +308,7 @@ format_p <- function(p) {
 # significant digits. sign = TRUE adds a leading + to positive numbers.
 # 4 significant digits, thousands separators, explicit sign when asked
 fmt_num <- function(x, sign = FALSE) {
+  x <- ifelse(!is.na(x) & abs(x) < 1e-8, 0, x)   # floating-point noise (1e-14) prints as 0
   out <- formatC(x, format = "fg", digits = 4, big.mark = ",")
   if (sign) out <- ifelse(x >= 0, paste0("+", out), out)
   trimws(out)
@@ -327,16 +332,16 @@ numeric_cols <- function(df, exclude_columns = NULL) {
 # max_terms: how many group differences to list, largest first.
 # skew_ratio: add a caveat when mean / median of the outcome exceeds this.
 profile_one_ols <- function(df, cat_col, num_col, min_category_size = 10, max_terms = 10, skew_ratio = 3) {
-  # shrink to categories with enough rows, as in the crosstab
-  keep <- big_enough(df[[cat_col]], min_category_size)
-  if (length(keep) < 2) {
-    return(paste0("fewer than two categories with at least ", min_category_size, " rows"))
-  }
-  # keep just the two columns the model needs, and drop rows missing either
-  small <- df |>
-    filter(.data[[cat_col]] %in% keep) |>
+  # drop rows missing either column FIRST, so category sizes count rows the model can use
+  complete <- df |>
     select(all_of(c(cat_col, num_col))) |>
     stats::na.omit()
+  # then shrink to categories with enough usable rows, as in the crosstab
+  keep <- big_enough(complete[[cat_col]], min_category_size)
+  if (length(keep) < 2) {
+    return(paste0("fewer than two categories with at least ", min_category_size, " non-missing rows"))
+  }
+  small <- complete |> filter(.data[[cat_col]] %in% keep)
   small[[cat_col]] <- factor(small[[cat_col]])     # drops levels that no longer appear
   # levs[1] is the reference group; every other level gets its own coefficient
   levs <- levels(small[[cat_col]])
@@ -396,15 +401,188 @@ profile_ols <- function(df, min_category_size = 10, exclude_columns = NULL, skew
 }
 
 # ---------------------------------------------------------------------------
+# Summary: a short plain-language read of the whole table, placed first in the report
+# ---------------------------------------------------------------------------
+
+# Helper: the cleaning log as report lines (used by build_report).
+format_cleaning_log <- function(log) {
+  if (nrow(log) == 0) return("no changes")
+  paste(sprintf("%s: %+d NA, levels %d -> %d%s", log$column, log$na_added,
+                log$levels_before, log$levels_after,
+                ifelse(log$to_numeric, " (converted to numeric)",
+                       ifelse(log$lowercased, " (lowercased)", ""))),
+        collapse = "\n")
+}
+
+# Summary: what the table is, what was cleaned, what is too thin to test, and the
+# strongest relationships found, with effect sizes. It recomputes lightly from df
+# (it does not parse the other sections), so it works even if another section fails.
+# Associations are ranked by effect size (Cramer's V, R-squared, |r|), not by p-value.
+# top_n: how many findings to list per kind.
+profile_summary <- function(df, min_category_size = 10, exclude_columns = NULL,
+                            cleaning_log = NULL, top_n = 5) {
+  num <- numeric_cols(df, exclude_columns)
+  cat_cols <- df[sapply(df, function(x) is.character(x) || is.factor(x))]
+  cat_cols <- cat_cols[!names(cat_cols) %in% exclude_columns]
+  groupable <- names(cat_cols)[sapply(cat_cols, keep_col, min_category_size = min_category_size)]
+  tests_run <- 0
+
+  # text columns that are mostly numbers or ranges ("26", "7-30", "60-"): better as numeric
+  numlike_share <- sapply(cat_cols, function(x) {
+    v <- gsub("\\s+", "", as.character(x[!is.na(x)]))
+    if (length(v) < min_category_size) return(0)
+    mean(grepl("^-?[0-9]+(\\.[0-9]+)?(-([0-9]+(\\.[0-9]+)?)?)?$", v))
+  })
+  numlike <- if (length(numlike_share) == 0) numeric(0) else
+    sort(numlike_share[numlike_share >= 0.8], decreasing = TRUE)
+  groupable <- setdiff(groupable, names(numlike))   # keep them out of the text-association tests
+
+  # --- overview, missing, thin, cleaning ---
+  n_lgl <- sum(sapply(df, is.logical))
+  out <- paste0(nrow(df), " rows x ", ncol(df), " columns: ", ncol(num), " numeric, ",
+                ncol(cat_cols), " text",
+                if (n_lgl > 0) paste0(", ", n_lgl, " logical") else "",
+                "; ", sum(duplicated(df)), " duplicate rows")
+  miss <- sapply(df, function(x) mean(is.na(x)))
+  heavy <- sort(miss[miss >= 0.5], decreasing = TRUE)
+  out <- c(out, if (length(heavy) > 0)
+    paste0("Mostly missing (50%+): ", paste0(names(heavy), " ", round(heavy * 100), "%", collapse = ", "))
+    else "No column is more than half missing")
+  thin_cut <- 3 * min_category_size
+  valid_n <- sapply(num, function(x) sum(!is.na(x)))
+  thin <- valid_n[valid_n < thin_cut]
+  if (length(thin) > 0) {
+    out <- c(out, paste0("Too few values to test reliably (under ", thin_cut, " non-missing): ",
+                         paste0(names(thin), " (", thin, ")", collapse = ", ")))
+  }
+  if (length(numlike) > 0) {
+    out <- c(out, paste0("Numeric-looking text (consider split_range; left out of the text associations below): ",
+                         paste0(names(numlike), " (", round(numlike * 100), "%)", collapse = ", ")))
+  }
+  if (!is.null(cleaning_log)) {
+    out <- c(out, if (nrow(cleaning_log) == 0) "Cleaning: no changes" else paste0(
+      "Cleaning changed ", nrow(cleaning_log), " columns: ",
+      sum(cleaning_log$to_numeric), " converted to numeric, ",
+      sum(cleaning_log$na_added > 0), " had placeholders turned to NA, ",
+      sum(!cleaning_log$to_numeric &
+            (cleaning_log$levels_before - cleaning_log$levels_after - cleaning_log$placeholder_levels) > 0),
+      " had variant spellings merged"))
+  }
+
+  # --- text x text: chi-square, ranked by Cramer's V ---
+  out <- c(out, "", "Strongest text x text associations (Cramer's V: 0.1 small, 0.3 medium, 0.5 large; sparse tables listed last, V is inflated there)")
+  if (length(groupable) >= 2) {
+    pairs <- combn(groupable, 2)
+    res <- dplyr::bind_rows(lapply(seq_len(ncol(pairs)), function(i) {
+      a <- pairs[1, i]; b <- pairs[2, i]
+      pair <- df[!is.na(df[[a]]) & !is.na(df[[b]]), c(a, b)]
+      ka <- big_enough(pair[[a]], min_category_size)
+      kb <- big_enough(pair[[b]], min_category_size)
+      if (length(ka) < 2 || length(kb) < 2) return(NULL)
+      small <- pair[pair[[a]] %in% ka & pair[[b]] %in% kb, ]
+      tab <- table(small[[a]], small[[b]])
+      if (nrow(tab) < 2 || ncol(tab) < 2) return(NULL)
+      chi <- suppressWarnings(stats::chisq.test(tab))
+      weak <- mean(chi$expected < 5)
+      p <- chi$p.value
+      if (weak > 0.2) { set.seed(1); p <- stats::chisq.test(tab, simulate.p.value = TRUE)$p.value }
+      v <- sqrt(unname(chi$statistic) / (sum(tab) * (min(dim(tab)) - 1)))
+      tibble::tibble(a = a, b = b, n = sum(tab), p = p, v = v, sparse = weak > 0.2)
+    }))
+    tests_run <- tests_run + nrow(res)
+    hits <- if (nrow(res) > 0) res[res$p < 0.05, ] else res
+    if (nrow(hits) == 0) {
+      out <- c(out, "  none stands out at p < 0.05")
+    } else {
+      hits <- head(hits[order(hits$sparse, -hits$v), ], top_n)
+      out <- c(out, paste0("  ", hits$a, " x ", hits$b, ": V = ", sprintf("%.2f", hits$v),
+                           " (n = ", sprintf("%.0f", hits$n), ", p", sapply(hits$p, format_p),
+                           ")", ifelse(hits$sparse, " [sparse table]", "")))
+    }
+  } else {
+    out <- c(out, "  fewer than two usable text columns")
+  }
+
+  # --- numeric by group: one-way R-squared ---
+  out <- c(out, "", "Strongest differences in a numeric column across groups (R-squared, share of variation explained; results from small groups listed last)")
+  if (ncol(num) > 0 && length(groupable) > 0) {
+    combos <- expand.grid(cat = groupable, num = names(num), stringsAsFactors = FALSE)
+    res <- dplyr::bind_rows(lapply(seq_len(nrow(combos)), function(i) {
+      cc <- combos$cat[i]; nn <- combos$num[i]
+      comp <- df[!is.na(df[[cc]]) & !is.na(df[[nn]]), c(cc, nn)]
+      keep <- big_enough(comp[[cc]], min_category_size)
+      if (length(keep) < 2) return(NULL)
+      small <- comp[comp[[cc]] %in% keep, ]
+      if (sd(small[[nn]]) == 0) return(NULL)
+      g <- broom::glance(stats::lm(small[[nn]] ~ factor(small[[cc]])))
+      smallest <- min(table(small[[cc]]))
+      tibble::tibble(cat = cc, num = nn, n = nrow(small), groups = length(keep),
+                     smallest = smallest, thin = smallest < 1.5 * min_category_size,
+                     r2 = g$r.squared, p = g$p.value)
+    }))
+    tests_run <- tests_run + nrow(res)
+    hits <- if (nrow(res) > 0) res[res$p < 0.05, ] else res
+    if (nrow(hits) == 0) {
+      out <- c(out, "  none stands out at p < 0.05")
+    } else {
+      hits <- head(hits[order(hits$thin, -hits$r2), ], top_n)
+      out <- c(out, paste0("  ", hits$cat, " -> ", hits$num, ": R-squared = ", sprintf("%.2f", hits$r2),
+                           " across ", hits$groups, " groups (n = ", hits$n, ", smallest group ", hits$smallest,
+                           ", p", sapply(hits$p, format_p), ")",
+                           ifelse(hits$thin, " [small groups]", "")))
+    }
+  } else {
+    out <- c(out, "  needs a numeric column and a usable text column")
+  }
+
+  # --- numeric x numeric: correlations ---
+  out <- c(out, "", "Strongest numeric correlations (the two ends of one measure, such as _min and _max, are skipped)")
+  if (ncol(num) >= 2) {
+    cp <- combn(names(num), 2)
+    measure_stem <- function(x) sub("_(min|max|lower|upper)$", "", x)
+    res <- dplyr::bind_rows(lapply(seq_len(ncol(cp)), function(i) {
+      if (measure_stem(cp[1, i]) == measure_stem(cp[2, i])) return(NULL)   # same measure, mechanical
+      pair <- stats::na.omit(df[c(cp[1, i], cp[2, i])])
+      if (nrow(pair) < min_category_size || sd(pair[[1]]) == 0 || sd(pair[[2]]) == 0) return(NULL)
+      ct <- stats::cor.test(pair[[1]], pair[[2]])
+      tibble::tibble(a = cp[1, i], b = cp[2, i], n = nrow(pair),
+                     r = unname(ct$estimate), p = ct$p.value)
+    }))
+    tests_run <- tests_run + nrow(res)
+    hits <- if (nrow(res) > 0) res[res$p < 0.05, ] else res
+    if (nrow(hits) == 0) {
+      out <- c(out, "  none stands out at p < 0.05")
+    } else {
+      hits <- head(hits[order(-abs(hits$r)), ], top_n)
+      out <- c(out, paste0("  ", hits$a, " x ", hits$b, ": r = ", sprintf("%.2f", hits$r),
+                           " (n = ", hits$n, ", p", sapply(hits$p, format_p), ")"))
+    }
+  } else {
+    out <- c(out, "  fewer than two numeric columns")
+  }
+
+  # --- caveat ---
+  out <- c(out, "", paste0(tests_run, " tests run; at p < 0.05 about ", round(tests_run * 0.05),
+                           " would pass by chance alone. P-values are not adjusted, rows are treated ",
+                           "as independent, and effect size matters more than the p-value."))
+  paste(out, collapse = "\n")
+}
+
+# ---------------------------------------------------------------------------
 # Report: run every step, write one Markdown file
 # ---------------------------------------------------------------------------
 
-# Runs all ten sections on one table and returns a report object.
+# Runs the Summary, an optional Cleaning log, and the ten profile sections on one table
+# and returns a report object.
 # name is used for the report title; min_category_size and exclude_columns are
 # passed to the sections that use them.
-build_report <- function(df, name = "dataset", min_category_size = 10, exclude_columns = NULL) {
+build_report <- function(df, name = "dataset", min_category_size = 10, exclude_columns = NULL,
+                         cleaning_log = NULL) {
   # each step is wrapped in a function so it can run inside tryCatch() below
-  steps <- list(
+  steps <- c(
+    list("Summary" = function() profile_summary(df, min_category_size, exclude_columns, cleaning_log)),
+    if (!is.null(cleaning_log)) list("Cleaning log" = function() format_cleaning_log(cleaning_log)),
+    list(
     "Shape"                      = function() profile_shape(df),
     "Column types"               = function() profile_types(df),
     "Missing values"             = function() profile_missing(df),
@@ -415,6 +593,7 @@ build_report <- function(df, name = "dataset", min_category_size = 10, exclude_c
     "Categorical x categorical"  = function() profile_crosstab(df, min_category_size, exclude_columns),
     "Numeric bivariate"          = function() profile_cor(df, exclude_columns),
     "OLS"                        = function() profile_ols(df, min_category_size, exclude_columns)
+    )
   )
   # one failing step shouldn't lose the rest of the report
   sections <- lapply(steps, function(f) {
