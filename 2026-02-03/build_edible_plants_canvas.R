@@ -1,7 +1,6 @@
 # build_edible_plants_canvas.R : Stage 3. Every mark on the poster becomes rows Tableau can draw.
 # Reads  (WORK_FOLDER):    plants.csv, counts.csv        from analyze_edible_plants.R
 # Writes (TABLEAU_FOLDER): edible_plants_canvas.csv      static scene. Columns: layer, poly_id, point_order, x, y, color, tip
-#                          plant_dots.csv                one row per plant: dot position, tone, card fields
 #                          glyph_atlas.csv               each character's outline, drawn once
 #                          card_layout.csv               one row per character of card text, per plant
 # No Python step: the atlas comes from glyph_rings() in glyph_helpers.R (it already bridges the holes).
@@ -221,8 +220,6 @@ set.seed(SEED)
 grain <- map_dfr(names(MOUND_CX), speck_poly)
 
 
-nrow(grain)
-
 mounds <- bind_rows(mounds, grain)
 
 eight <- floor(10 * min(cell("herb", "low") / n_type[["herb"]],
@@ -278,14 +275,6 @@ for_soil <- text_poly("for_soil", "lettering", "for soil", 930, 228, 40, font_pa
 
 lettering <- bind_rows(labels, title_v, appetite, for_soil)     # key_dots leave this
 
-scene <- bind_rows(wall, poster, mounds, lettering)
-pv <- ggplot() + scale_fill_identity() + coord_equal()
-for (ly in c("wall", "poster", "mound", "grain", "lettering")) {
-  pv <- pv + geom_polygon(data = filter(scene, layer == ly), aes(x, y, group = poly_id, fill = color))
-}
-pv + geom_point(data = dots, aes(x, flip_y(y)), color = "white", size = 1.5)
-
-nrow(lettering)
 nrow(draw_labels(L2 |> filter(id == "disclaimer")))
 # Step 8: Dots (marks, one row per plant) and the card
 
@@ -370,13 +359,6 @@ card_layout <- bind_rows(card_layout, chrome, close_lay)     # then the sprintf 
 card_layout <- card_layout |> mutate(across(c(x_off, y_off), ~ sprintf("%.4f", .x)))
 atlas       <- atlas       |> mutate(across(c(gx, gy),       ~ sprintf("%.5f", .x)))
 
-preview_card <- function(who) {
-  lay <- card_layout |> filter(plant == who) |> mutate(across(c(x_off, y_off), as.numeric))
-  at  <- atlas |> mutate(across(c(gx, gy), as.numeric))
-  lay |> inner_join(at, by = "glyph_key", relationship = "many-to-many") |>
-    mutate(x = gx + x_off, y = gy + y_off, pid = paste(layer, idx, ring))
-}
-
 
 # Q: `sun` can read "FULL SUN/PARTIAL SHADE/FULL SHADE", far wider than a quarter of the card at 20 px.
 #    A smaller size, a row to itself, or a shorter label. Which, and where does that decision live?
@@ -432,4 +414,4 @@ write_atomic <- function(df, name) {
 write_atomic(canvas,      "edible_plants_canvas.csv")
 write_atomic(atlas,       "glyph_atlas.csv")
 write_atomic(card_layout, "card_layout.csv")
-cat("build done:", nrow(canvas), "canvas rows,", "dots,", nrow(card_layout), "layout rows,", nrow(atlas), "atlas rows\n")
+cat("build done:", nrow(canvas), "canvas rows,", nrow(card_layout), "layout rows,", nrow(atlas), "atlas rows\n")
