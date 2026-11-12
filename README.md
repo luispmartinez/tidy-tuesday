@@ -9,6 +9,7 @@ My [TidyTuesday](https://github.com/rfordatascience/tidytuesday) 2026 work in R 
 | 2026-01-13 | Languages of Africa | [Tableau Public](https://public.tableau.com/views/AfricaLanguages/AfricanLanguages) | [2026-01-13](2026-01-13) |
 | 2026-01-20 | NASA Astronomy Picture of the Day | [Tableau Public](https://public.tableau.com/views/APOD/APOD) | [2026-01-20](2026-01-20) |
 | 2026-01-27 | Brazilian companies | [Tableau Public](https://public.tableau.com/app/profile/luis.pablo6724/viz/BrazilCompanyCapitalTheShiftandthe233/BrazilCompanyCapitalTheShiftandthe233C) | [2026-01-27](2026-01-27) |
+| 2026-02-03 | Edible plants | [Tableau Public](https://public.tableau.com/app/profile/luis.pablo6724/viz/EdiblePlants/EdiblePlants) | [2026-02-03](2026-02-03) |
 
 
 ## Layout
