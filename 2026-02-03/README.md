@@ -3,6 +3,7 @@
 **Viz:** [Plant type: appetite for soil on Tableau Public](https://public.tableau.com/app/profile/luis.pablo6724/viz/EdiblePlants/EdiblePlants)
 
 ![Plant type: appetite for soil](edible-plants.png)
+![Clicking a dot opens the card for that plant](edible-plants-card.png)
 
 One dot is one plant, 140 in all. The dots pile into three soil mounds (fruit and nut plants, herbs, and everything else), and each mound is layered from a pinch of soil at the bottom to a heap at the top. Eight in ten herbs ask for a pinch. Eight in ten fruit and nut plants ask for a scoop. The other 86 plants ask for all three levels in about equal parts. Click a dot to open that plant's card.
 
