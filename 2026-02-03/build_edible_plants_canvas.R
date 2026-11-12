@@ -37,12 +37,6 @@ source("R/glyph_helpers.R"); check_helper_globals()
 # Q: DEG_PX = 40 makes the 1300 px canvas 32.5 degrees wide. A map wraps at 180 degrees of longitude.
 #    How far from the wrap is this canvas, and why did the unscaled test (480 px lines) collide with itself?
 
-for (tol in c(0.5, 1, 2, 4, 8)) {
-  n <- nrow(text_poly("t", "l", "appetite", 0, 120, 96, font_paths[["marker"]], "#000", tol = tol))
-  cat("tol", tol, "rows", n, "\n")
-}
-p <- text_poly("t", "l", "appetite", 0, 120, 96, font_paths[["marker"]], "#000", tol = 2)
-
 
 # Step 3: Read the hand-off
 plants <- read_csv(file.path(WORK_FOLDER, "plants.csv"), show_col_types = FALSE)
@@ -294,11 +288,7 @@ pv + geom_point(data = dots, aes(x, flip_y(y)), color = "white", size = 1.5)
 nrow(lettering)
 nrow(draw_labels(L2 |> filter(id == "disclaimer")))
 # Step 8: Dots (marks, one row per plant) and the card
-plant_dots <- dots |>
-  transmute(plant = common_name, plant_type, nutrients, level_rank, level_word, dot_order,
-            x, y = flip_y(y), color = TONE[nutrients],
-            taxonomic_name, water, sunlight, ph_label, season)
-# Q: why can the card fields ride on this table when the card TEXT cannot?
+
 
 # card text. Layout in px at the font's own size, then to degrees. Positions are baseline-left per character
 layout_text <- function(text, key, max_px, line_px) {              # one row per non-space character
@@ -401,18 +391,17 @@ dot_rows <- dots |>
 canvas    <- bind_rows(wall, poster, mounds, lettering, dot_rows, key_dots)
 # Q: poly_id must be unique across layers. How do you check that, and what breaks in Tableau if two layers share one?
 canvas     <- canvas     |> mutate(x = (x - W / 2) / DEG_PX, y = (y - H / 2) / DEG_PX)
-plant_dots <- plant_dots |> mutate(x = (x - W / 2) / DEG_PX, y = (y - H / 2) / DEG_PX)
+
 
 # Step 10: Checks
 dup_layer  <- canvas |> group_by(poly_id) |> summarise(n_layers = n_distinct(layer)) |> filter(n_layers > 1)
 dup_within <- canvas |> count(poly_id, point_order) |> filter(n > 1)
 stopifnot(
-  "over the row ceiling"                  = nrow(canvas) + nrow(plant_dots) + nrow(card_layout) + nrow(atlas) <= ROW_CEILING,
-  "missing coordinates"                   = !anyNA(canvas$x) && !anyNA(canvas$y) && !anyNA(plant_dots$x),
+  "over the row ceiling"                  = nrow(canvas) +  nrow(card_layout) + nrow(atlas) <= ROW_CEILING,
+  "missing coordinates"                   = !anyNA(canvas$x) && !anyNA(canvas$y),
   "canvas outside valid lat/lon"          = all(abs(canvas$x) <= 180) && all(abs(canvas$y) <= 90),
   "a poly_id appears in two layers"       = nrow(dup_layer) == 0,
   "two shapes share one poly_id"          = nrow(dup_within) == 0,
-  "each plant must have exactly one dot"  = n_distinct(plant_dots$plant) == 140 && nrow(plant_dots) == 140,
   "two plants share a slot"               = nrow(distinct(dots, plant_type, row, col)) == 140,
   "a plant has no name text"              = setequal(unique(card_layout$plant[card_layout$layer == "name"]), plants$common_name),
   "a plant has no description text"       = setequal(unique(card_layout$plant[card_layout$layer == "description"]), plants$common_name),
@@ -441,7 +430,6 @@ write_atomic <- function(df, name) {
   invisible(out)
 }
 write_atomic(canvas,      "edible_plants_canvas.csv")
-write_atomic(plant_dots,  "plant_dots.csv")
 write_atomic(atlas,       "glyph_atlas.csv")
 write_atomic(card_layout, "card_layout.csv")
-cat("build done:", nrow(canvas), "canvas rows,", nrow(plant_dots), "dots,", nrow(card_layout), "layout rows,", nrow(atlas), "atlas rows\n")
+cat("build done:", nrow(canvas), "canvas rows,", "dots,", nrow(card_layout), "layout rows,", nrow(atlas), "atlas rows\n")
